@@ -14,10 +14,7 @@ namespace AuctionService
 
             // Configure the HTTP request pipeline.
 
-            app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
 
             app.MapControllers();
 
