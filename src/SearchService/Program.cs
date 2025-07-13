@@ -1,10 +1,15 @@
+using System.Net;
+using Polly;
+using Polly.Extensions.Http;
 using SearchService.Data;
+using SearchService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddHttpClient<AuctionSvcHttpClient>().AddPolicyHandler(GetPolicy());
 
 var app = builder.Build();
 
@@ -13,13 +18,24 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-try
+// This line to start the application even if the auction service still down because without this the application will not start till the auction service become up
+app.Lifetime.ApplicationStarted.Register(async () =>
 {
-    await DbInitializer.InitData(app);
-}
-catch (Exception e)
-{
-    Console.WriteLine(e);
-}
+    try
+    {
+        await DbInitializer.InitData(app);
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+    }
+});
 
 app.Run();
+
+// This policy is to resend the http request every 3 second till the response comes
+static IAsyncPolicy<HttpResponseMessage> GetPolicy()
+    => HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(msg => msg.StatusCode == HttpStatusCode.NotFound)
+        .WaitAndRetryForeverAsync(_ => TimeSpan.FromSeconds(3));
